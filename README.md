@@ -122,6 +122,16 @@ make test-cgo      # vet the cgo build (requires `make lib`)
 - The `keepFirst` person mode is a whitespace heuristic ("First Last"); it won't
   perfectly handle every name format (e.g. "Doe, Jane").
 
+## Deploy to a Proxmox LXC
+
+A turn-key deploy into an unprivileged Debian 12 LXC (builds in-container,
+downloads the model, installs a hardened systemd service) lives in
+[`deploy/proxmox/`](deploy/proxmox/README.md). From the Proxmox host:
+
+```sh
+CTID=210 IP=192.168.1.50/24 GATEWAY=192.168.1.1 make deploy-lxc
+```
+
 ## Docker
 
 ```sh

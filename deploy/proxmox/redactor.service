@@ -1,0 +1,44 @@
+[Unit]
+Description=PII redaction API (privacy-filter.cpp)
+Documentation=https://github.com/localai-org/privacy-filter.cpp
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=redactor
+Group=redactor
+EnvironmentFile=/etc/redactor/redactor.env
+ExecStart=/usr/local/bin/redactor
+Restart=on-failure
+RestartSec=2
+TimeoutStartSec=120
+
+# --- sandboxing / hardening ---
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectClock=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+# The model is read at /var/lib/redactor; ProtectSystem=strict keeps the rest
+# of the filesystem read-only and the service needs no writable paths.
+
+# --- resources ---
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

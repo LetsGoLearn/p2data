@@ -5,7 +5,7 @@ BUILD_DIR := $(PF_DIR)/build/release
 MODEL     ?= q8
 BIN       := bin/redactor
 
-.PHONY: all submodules lib model build run test test-cgo vet clean
+.PHONY: all submodules lib model build run test test-cgo vet clean deploy-lxc
 
 all: lib build
 
@@ -41,6 +41,11 @@ vet:
 ## Run the server (set REDACTOR_API_KEYS and REDACTOR_MODEL_PATH first).
 run: build
 	./$(BIN)
+
+## Create a Proxmox LXC and deploy into it. Run on the Proxmox host.
+## Override settings via env, e.g. CTID=210 MEMORY=6144 make deploy-lxc
+deploy-lxc:
+	bash deploy/proxmox/create-lxc.sh
 
 clean:
 	rm -rf bin $(BUILD_DIR)
