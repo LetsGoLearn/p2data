@@ -1,0 +1,12 @@
+# Models are large (hundreds of MB to GB) — fetched via scripts/download-model.sh
+/models/*.gguf
+
+# Native build output from the privacy-filter.cpp submodule
+/third_party/privacy-filter.cpp/build/
+
+# Go binaries
+/bin/
+/redactor
+
+# Env files with secrets
+.env
