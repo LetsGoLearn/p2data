@@ -18,7 +18,7 @@ RUN git submodule update --init --recursive third_party/privacy-filter.cpp || tr
 # Build static libpf.a + ggml (portable CPU backend).
 RUN cd third_party/privacy-filter.cpp \
     && cmake --preset release --fresh \
-        -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=OFF -DGGML_BLAS=OFF \
+        -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=OFF -DGGML_BLAS=OFF -DGGML_OPENMP=OFF \
     && cmake --build build/release --target pf -j
 
 # Build the statically-linked redactor binary.

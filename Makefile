@@ -16,7 +16,7 @@ submodules:
 ## Build libpf.a + ggml static libs (CPU + BLAS, no Metal). Requires cmake.
 lib:
 	cd $(PF_DIR) && cmake --preset release --fresh \
-		-DBUILD_SHARED_LIBS=OFF -DGGML_METAL=OFF -DGGML_BLAS=OFF
+		-DBUILD_SHARED_LIBS=OFF -DGGML_METAL=OFF -DGGML_BLAS=OFF -DGGML_OPENMP=OFF
 	cmake --build $(BUILD_DIR) --target pf -j
 
 ## Download a GGUF model into ./models (MODEL=q8|f16).

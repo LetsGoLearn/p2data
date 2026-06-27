@@ -7,7 +7,9 @@ package pfilter
 
 // Static link against libpf.a and the bundled ggml static libs. The -L paths
 // match the `release` cmake preset built with -DBUILD_SHARED_LIBS=OFF
-// -DGGML_METAL=OFF -DGGML_BLAS=OFF (portable CPU backend; see Makefile `lib`).
+// -DGGML_METAL=OFF -DGGML_BLAS=OFF -DGGML_OPENMP=OFF (portable CPU backend,
+// no libgomp.so dependency; ggml uses its own pthread threadpool). See the
+// Makefile `lib` target.
 #cgo LDFLAGS: -L${SRCDIR}/../../third_party/privacy-filter.cpp/build/release
 #cgo LDFLAGS: -L${SRCDIR}/../../third_party/privacy-filter.cpp/build/release/ggml/src
 #cgo LDFLAGS: -lpf -lggml -lggml-cpu -lggml-base
