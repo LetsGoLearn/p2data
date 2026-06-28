@@ -28,10 +28,11 @@ esac
 echo "==> [1/7] apt dependencies"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-# libopenblas-dev provides both the build headers and the runtime .so for the
-# BLAS-accelerated engine build (GGML_BLAS=ON; see Makefile / cgo.go).
+# libopenblas-dev provides the build headers and runtime .so; pkg-config is
+# required by ggml's BLAS backend CMake to locate OpenBLAS (GGML_BLAS=ON; see
+# Makefile / cgo.go).
 apt-get install -y --no-install-recommends \
-  cmake build-essential git curl ca-certificates libopenblas-dev
+  cmake build-essential git curl ca-certificates pkg-config libopenblas-dev
 
 echo "==> [2/7] Go ${GO_VERSION}"
 ARCH="$(dpkg --print-architecture)"   # amd64 | arm64

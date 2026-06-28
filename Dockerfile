@@ -6,7 +6,7 @@
 FROM golang:1.26-bookworm AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        cmake git build-essential ca-certificates libopenblas-dev \
+        cmake git build-essential ca-certificates pkg-config libopenblas-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
