@@ -6,7 +6,7 @@
 FROM golang:1.26-bookworm AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        cmake git build-essential ca-certificates \
+        cmake git build-essential ca-certificates libopenblas-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
@@ -15,10 +15,11 @@ COPY . .
 # Fetch submodules if the build context didn't include them.
 RUN git submodule update --init --recursive third_party/privacy-filter.cpp || true
 
-# Build static libpf.a + ggml (portable CPU backend).
+# Build static libpf.a + ggml (BLAS-accelerated CPU backend via OpenBLAS).
 RUN cd third_party/privacy-filter.cpp \
     && cmake --preset release --fresh \
-        -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=OFF -DGGML_BLAS=OFF -DGGML_OPENMP=OFF \
+        -DBUILD_SHARED_LIBS=OFF -DGGML_METAL=OFF -DGGML_OPENMP=OFF \
+        -DGGML_BLAS=ON -DGGML_BLAS_VENDOR=OpenBLAS \
     && cmake --build build/release --target pf -j
 
 # Build the statically-linked redactor binary.
@@ -26,7 +27,8 @@ RUN CGO_ENABLED=1 go build -trimpath -o /out/redactor ./cmd/redactor
 
 # ---- runtime stage ----
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+# libopenblas0: the engine dynamically links OpenBLAS (GGML_BLAS=ON build).
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libopenblas0 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 redactor
 COPY --from=build /out/redactor /usr/local/bin/redactor

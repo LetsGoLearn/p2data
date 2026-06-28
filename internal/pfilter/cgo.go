@@ -7,14 +7,26 @@ package pfilter
 
 // Static link against libpf.a and the bundled ggml static libs. The -L paths
 // match the `release` cmake preset built with -DBUILD_SHARED_LIBS=OFF
-// -DGGML_METAL=OFF -DGGML_BLAS=OFF -DGGML_OPENMP=OFF (portable CPU backend,
-// no libgomp.so dependency; ggml uses its own pthread threadpool). See the
-// Makefile `lib` target.
+// -DGGML_METAL=OFF -DGGML_OPENMP=OFF -DGGML_BLAS=ON (BLAS-accelerated CPU
+// backend: Apple Accelerate on macOS, OpenBLAS on Linux). See the Makefile
+// `lib` target.
+//
+// The ggml BLAS backend is a SEPARATE static lib (libggml-blas.a) that
+// self-registers via a global constructor. The linker would drop that
+// unreferenced object from a normal -l, so it is force-loaded (whole archive),
+// placed before -lggml-base, with the system BLAS linked after.
+//
+// For a GGML_BLAS=OFF build, remove the ggml-blas / -lopenblas flags below
+// (and the ggml-blas -L); Accelerate may stay linked on macOS.
 #cgo LDFLAGS: -L${SRCDIR}/../../third_party/privacy-filter.cpp/build/release
 #cgo LDFLAGS: -L${SRCDIR}/../../third_party/privacy-filter.cpp/build/release/ggml/src
-#cgo LDFLAGS: -lpf -lggml -lggml-cpu -lggml-base
+#cgo LDFLAGS: -L${SRCDIR}/../../third_party/privacy-filter.cpp/build/release/ggml/src/ggml-blas
+#cgo LDFLAGS: -lpf -lggml -lggml-cpu
+#cgo linux LDFLAGS: -Wl,--whole-archive -lggml-blas -Wl,--no-whole-archive
+#cgo darwin LDFLAGS: -Wl,-force_load,${SRCDIR}/../../third_party/privacy-filter.cpp/build/release/ggml/src/ggml-blas/libggml-blas.a
+#cgo LDFLAGS: -lggml-base
 #cgo darwin LDFLAGS: -lc++ -framework Accelerate -framework Foundation
-#cgo linux LDFLAGS: -lstdc++ -lm -lpthread -ldl
+#cgo linux LDFLAGS: -lstdc++ -lm -lpthread -ldl -lopenblas
 
 #include <stdlib.h>
 #include "pf.h"

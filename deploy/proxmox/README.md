@@ -10,6 +10,7 @@ unit. TLS is expected to terminate upstream (reverse proxy / load balancer).
 | File | Runs on | Purpose |
 |---|---|---|
 | `create-lxc.sh` | Proxmox host | Creates the CT, pushes source, runs `provision.sh` |
+| `update-lxc.sh` | Proxmox host | Updates an existing CT in place: pushes source, rebuilds, restarts |
 | `provision.sh` | Inside the CT | Installs toolchain, builds, downloads model, installs the service |
 | `redactor.service` | Inside the CT | Hardened systemd unit |
 | `redactor.env.example` | Inside the CT | Env template (key + model path filled in by `provision.sh`) |
@@ -87,12 +88,24 @@ curl -fsS -H "Authorization: Bearer <KEY>" \
 
 ## Upgrading
 
-Re-run `provision.sh` after updating the source (it is idempotent — it keeps the
-existing `/etc/redactor/redactor.env` and the downloaded model, rebuilds the
-binary, and restarts the service):
+Use `update-lxc.sh` from the Proxmox host — it packages the current source,
+pushes it over `/opt/redactor/src`, and re-runs the idempotent `provision.sh`
+(keeps the existing `/etc/redactor/redactor.env` and the downloaded model,
+rebuilds the engine + binary with `cmake --fresh`, and restarts the service):
 
 ```sh
-# push the new source over /opt/redactor/src, then:
+# defaults: CTID=118, q8 model
+bash deploy/proxmox/update-lxc.sh        # or: make update-lxc
+
+# or target another container:
+CTID=210 MODEL_VARIANT=q8 bash deploy/proxmox/update-lxc.sh
+```
+
+It finishes with a `/readyz` health check and prints the API URL + log command.
+
+Manual equivalent (push the new source over `/opt/redactor/src`, then):
+
+```sh
 pct exec <CTID> -- env APP_SRC=/opt/redactor/src bash /opt/redactor/src/deploy/proxmox/provision.sh
 ```
 

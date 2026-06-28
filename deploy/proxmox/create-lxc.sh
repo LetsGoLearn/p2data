@@ -6,15 +6,14 @@
 #   CTID=210 MEMORY=6144 IP=192.168.1.50/24 GATEWAY=192.168.1.1 \
 #     bash deploy/proxmox/create-lxc.sh
 set -euo pipefail
-#CTID=118 MEMORY=6144 IP=192.168.100.118/24 GATEWAY=192.168.100.1 \
-#bash deploy/proxmox/create-lxc.sh
+
 CTID="${CTID:-118}"
 HOSTNAME="${HOSTNAME:-redactor}"
 # Find templates with: pveam available | grep debian ; pveam download local <tmpl>
 TEMPLATE="${TEMPLATE:-local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst}"
 STORAGE="${STORAGE:-local}"     # rootfs storage
 CORES="${CORES:-4}"
-MEMORY="${MEMORY:-4096}"            # MiB; model is ~1.5GB resident (q8)
+MEMORY="${MEMORY:-6144}"            # MiB; q8 ≈1.5GB resident per pool context (POOL_SIZE=2 ≈ 3GB + build/OS headroom)
 SWAP="${SWAP:-512}"
 DISK="${DISK:-16}"                  # GiB; build + Go + model need headroom
 BRIDGE="${BRIDGE:-vmbr0}"

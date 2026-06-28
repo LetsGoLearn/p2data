@@ -5,7 +5,19 @@ BUILD_DIR := $(PF_DIR)/build/release
 MODEL     ?= q8
 BIN       := bin/redactor
 
-.PHONY: all submodules lib model build run test test-cgo vet clean deploy-lxc
+# BLAS acceleration for the engine's GEMM-heavy NER forward pass — a large CPU
+# speedup. Vendor defaults per-OS: Apple Accelerate on macOS, OpenBLAS on Linux
+# (needs libopenblas-dev). Set GGML_BLAS=OFF for a portable, slower build with
+# no BLAS dependency — but then also drop the ggml-blas link flags in
+# internal/pfilter/cgo.go, which assume the BLAS backend is present.
+GGML_BLAS ?= ON
+ifeq ($(shell uname -s),Darwin)
+  GGML_BLAS_VENDOR ?= Apple
+else
+  GGML_BLAS_VENDOR ?= OpenBLAS
+endif
+
+.PHONY: all submodules lib model build run test test-cgo vet clean deploy-lxc update-lxc
 
 all: lib build
 
@@ -13,10 +25,11 @@ all: lib build
 submodules:
 	git submodule update --init --recursive $(PF_DIR)
 
-## Build libpf.a + ggml static libs (CPU + BLAS, no Metal). Requires cmake.
+## Build libpf.a + ggml static libs (CPU, BLAS-accelerated, no Metal). Requires cmake.
 lib:
 	cd $(PF_DIR) && cmake --preset release --fresh \
-		-DBUILD_SHARED_LIBS=OFF -DGGML_METAL=OFF -DGGML_BLAS=OFF -DGGML_OPENMP=OFF
+		-DBUILD_SHARED_LIBS=OFF -DGGML_METAL=OFF -DGGML_OPENMP=OFF \
+		-DGGML_BLAS=$(GGML_BLAS) -DGGML_BLAS_VENDOR=$(GGML_BLAS_VENDOR)
 	cmake --build $(BUILD_DIR) --target pf -j
 
 ## Download a GGUF model into ./models (MODEL=q8|f16).
@@ -46,6 +59,11 @@ run: build
 ## Override settings via env, e.g. CTID=210 MEMORY=6144 make deploy-lxc
 deploy-lxc:
 	bash deploy/proxmox/create-lxc.sh
+
+## Update an already-deployed LXC in place (push source, rebuild, restart).
+## Run on the Proxmox host. Override via env, e.g. CTID=210 make update-lxc
+update-lxc:
+	bash deploy/proxmox/update-lxc.sh
 
 clean:
 	rm -rf bin $(BUILD_DIR)
