@@ -17,6 +17,12 @@ else
   GGML_BLAS_VENDOR ?= OpenBLAS
 endif
 
+# cgo rejects -Wl,--whole-archive / -force_load in #cgo LDFLAGS by default
+# (https://go.dev/s/invalidflag). The ggml-blas backend is a self-registering
+# static archive that must be force-loaded (see internal/pfilter/cgo.go), so
+# allow those flags for every cgo build/vet below.
+export CGO_LDFLAGS_ALLOW := -Wl,--whole-archive|-Wl,--no-whole-archive|-Wl,-force_load.*
+
 .PHONY: all submodules lib model build run test test-cgo vet clean deploy-lxc update-lxc
 
 all: lib build
