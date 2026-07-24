@@ -73,21 +73,28 @@ func main() {
 }
 
 // newClassifier loads the native engine, or the regex Fake when
-// REDACTOR_USE_FAKE=1 (for local development without a model).
+// REDACTOR_USE_FAKE=1 (for local development without a model). Either way the
+// result is wrapped with the deterministic Backstop so structured PII (form
+// dates, "Last, First" names, labeled IDs) is caught even when the model
+// misses it.
 func newClassifier(cfg *config.Config, log *slog.Logger) (pfilter.Classifier, error) {
 	if os.Getenv("REDACTOR_USE_FAKE") == "1" {
 		log.Warn("using FAKE classifier (regex-based); not for production")
-		return pfilter.NewFake("Jane Doe", "John Smith"), nil
+		return pfilter.WithBackstop(pfilter.NewFake("Jane Doe", "John Smith")), nil
 	}
 	if cfg.ModelPath == "" {
 		return nil, errors.New("REDACTOR_MODEL_PATH is required (or set REDACTOR_USE_FAKE=1)")
 	}
 	log.Info("loading model", "path", cfg.ModelPath, "device", cfg.Device, "pool", cfg.PoolSize)
-	return pfilter.Load(pfilter.LoadOptions{
+	clf, err := pfilter.Load(pfilter.LoadOptions{
 		ModelPath: cfg.ModelPath,
 		Device:    cfg.Device,
 		NThreads:  cfg.NThreads,
 		Window:    cfg.Window,
 		PoolSize:  cfg.PoolSize,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return pfilter.WithBackstop(clf), nil
 }

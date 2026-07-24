@@ -9,6 +9,10 @@ NER engine (OpenAI's privacy-filter token-classification model), bound via
 
 - **Real NER redaction** — detects PII spans with exact UTF-8 byte offsets via
   the engine's flat C API (`pf_classify`).
+- **Deterministic backstop** — a regex layer always runs alongside the model to
+  catch structured PII the NER can miss in form-style documents (IEPs, intake
+  forms): bare dates (`04/24/2015`, `April 24, 2015`), "Last, First" names,
+  labeled IDs split across lines (`Student ID #` / `20470`), and grade levels.
 - **Per-label redaction policy** — choose how each PII type is rewritten:
   - `tag` (default) → `[EMAIL]`, `[PHONE]`, …
   - `mask` → a fixed string (`[REDACTED]`)
@@ -22,10 +26,15 @@ NER engine (OpenAI's privacy-filter token-classification model), bound via
   only on a `Classifier` interface, so they build and test with `CGO_ENABLED=0`
   using an in-memory fake.
 
-## Supported labels (base English model)
+## Supported labels
 
-`private_person`, `private_email`, `private_phone`, `private_address`,
-`private_date`, `private_url`, `account_number`, `secret`.
+From the base English model: `private_person`, `private_email`,
+`private_phone`, `private_address`, `private_date`, `private_url`,
+`account_number`, `secret`.
+
+The deterministic backstop additionally emits `private_grade` (student grade
+level, a FERPA quasi-identifier) and reuses `private_person`, `private_date`,
+and `account_number` for its matches.
 
 ## Build & run
 
@@ -119,8 +128,8 @@ make test-cgo      # vet the cgo build (requires `make lib`)
   can be added to `cmd/redactor` if needed.
 - `POOL_SIZE` multiplies memory by the full model size; raise only if you have
   the RAM and need more concurrency.
-- The `keepFirst` person mode is a whitespace heuristic ("First Last"); it won't
-  perfectly handle every name format (e.g. "Doe, Jane").
+- The `keepFirst` person mode handles "First Last" and "Last, First [Middle]"
+  orders; other name formats fall back to keeping the first token.
 
 ## Deploy to a Proxmox LXC
 

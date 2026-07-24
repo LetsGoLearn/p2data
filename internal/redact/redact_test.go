@@ -40,6 +40,18 @@ func TestApply_KeepFirstPerson(t *testing.T) {
 	}
 }
 
+func TestApply_KeepFirstCommaName(t *testing.T) {
+	r := New("", nil)
+	text := "Student: Diede, Anderson Cash (grade 3)"
+	s := strings.Index(text, "Diede")
+	e := pfilter.Entity{Start: s, End: s + len("Diede, Anderson Cash"), Label: "private_person"}
+	got, _ := r.Apply(text, ents(e), Policy{Default: ModeKeepFirst})
+	want := "Student: Anderson [LAST] (grade 3)"
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
 func TestApply_KeepFirstSingleToken(t *testing.T) {
 	r := New("", nil)
 	text := "Hi Jane"

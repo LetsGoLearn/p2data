@@ -12,7 +12,8 @@ import (
 	"github.com/letsgolearn/p2data/internal/redact"
 )
 
-// supportedLabels are the base English model's entity groups with friendly tags.
+// supportedLabels are the base English model's entity groups plus the labels
+// emitted by the deterministic pattern backstop, with friendly tags.
 var supportedLabels = []labelInfo{
 	{"private_person", "PERSON"},
 	{"private_email", "EMAIL"},
@@ -20,6 +21,7 @@ var supportedLabels = []labelInfo{
 	{"private_address", "ADDRESS"},
 	{"private_date", "DATE"},
 	{"private_url", "URL"},
+	{"private_grade", "GRADE"},
 	{"account_number", "ACCOUNT"},
 	{"secret", "SECRET"},
 }

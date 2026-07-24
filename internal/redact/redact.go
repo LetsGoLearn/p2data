@@ -22,6 +22,7 @@ var defaultTags = map[string]string{
 	"private_address": "ADDRESS",
 	"private_date":    "DATE",
 	"private_url":     "URL",
+	"private_grade":   "GRADE",
 	"account_number":  "ACCOUNT",
 	"secret":          "SECRET",
 }
@@ -97,10 +98,17 @@ func (r *Redactor) replacement(value, label string, mode Mode) string {
 	}
 }
 
-// keepFirst keeps the first whitespace-delimited token and replaces the rest
-// with lastTag. A single-token value is returned unchanged (no surname to
-// strip). This is a best-effort heuristic for Western "First Last" names.
+// keepFirst keeps the given (first) name and replaces the rest with lastTag.
+// It handles both "First Last" and "Last, First [Middle]" orders; a
+// single-token value is returned unchanged (no surname to strip).
 func (r *Redactor) keepFirst(value string) string {
+	// "Last, First Middle" -> the surname precedes the comma, so the first
+	// token after it is the given name.
+	if _, after, ok := strings.Cut(value, ","); ok {
+		if fields := strings.Fields(after); len(fields) > 0 {
+			return fields[0] + " " + lastTag
+		}
+	}
 	fields := strings.Fields(value)
 	if len(fields) <= 1 {
 		return value
