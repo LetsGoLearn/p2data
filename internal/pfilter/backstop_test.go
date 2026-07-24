@@ -65,7 +65,7 @@ func TestBackstop_IEPDocument(t *testing.T) {
 		label string
 	}{
 		{"Diede, Anderson Cash", "private_person"},
-		{"04/24/2015", "private_date"},
+		{"04/24/2015", "date_of_birth"},
 		{"03", "private_grade"},
 		{"20470", "account_number"},
 	} {
@@ -90,23 +90,41 @@ func TestBackstop_IEPDocument(t *testing.T) {
 	}
 }
 
-func TestBackstop_DateFormats(t *testing.T) {
+func TestBackstop_BirthdateFormats(t *testing.T) {
 	for _, text := range []string{
 		"DOB: 4-24-15",
-		"born 2015-04-24",
-		"born April 24, 2015",
+		"D.O.B. 04/24/2015",
+		"Birthdate 04/24/2015",
+		"Birth Date: 2015-04-24",
+		"Date of Birth\n\n04/24/2015",
+		"born on April 24, 2015",
 		"born Apr. 24 2015",
 		"born 24 April 2015",
 	} {
 		ents := classify(t, NewBackstop(), text)
 		found := false
 		for _, e := range ents {
-			if e.Label == "private_date" {
+			if e.Label == "date_of_birth" {
 				found = true
 			}
 		}
 		if !found {
-			t.Errorf("no private_date detected in %q", text)
+			t.Errorf("no date_of_birth detected in %q", text)
+		}
+	}
+}
+
+// Dates that describe events (tests taken, meetings held, review dates) carry
+// meaning and must NOT be redacted by the backstop.
+func TestBackstop_KeepsEventDates(t *testing.T) {
+	for _, text := range []string{
+		"Took the STAR reading assessment on 04/12/2024.",
+		"IEP meeting held April 2, 2025.",
+		"Next annual review: 2025-05-01",
+		"Scores from 10/15/2024 show growth in fluency.",
+	} {
+		if ents := classify(t, NewBackstop(), text); len(ents) != 0 {
+			t.Errorf("event date wrongly flagged in %q: %v", text, ents)
 		}
 	}
 }

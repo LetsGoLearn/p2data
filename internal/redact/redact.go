@@ -23,6 +23,7 @@ var defaultTags = map[string]string{
 	"private_date":    "DATE",
 	"private_url":     "URL",
 	"private_grade":   "GRADE",
+	"date_of_birth":   "DOB",
 	"account_number":  "ACCOUNT",
 	"secret":          "SECRET",
 }

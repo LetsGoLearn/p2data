@@ -11,8 +11,11 @@ NER engine (OpenAI's privacy-filter token-classification model), bound via
   the engine's flat C API (`pf_classify`).
 - **Deterministic backstop** — a regex layer always runs alongside the model to
   catch structured PII the NER can miss in form-style documents (IEPs, intake
-  forms): bare dates (`04/24/2015`, `April 24, 2015`), "Last, First" names,
-  labeled IDs split across lines (`Student ID #` / `20470`), and grade levels.
+  forms): labeled birthdates (`Birthdate 04/24/2015`, `DOB: 4-24-15`),
+  "Last, First" names, labeled IDs split across lines (`Student ID #` /
+  `20470`), and grade levels. Event dates (tests taken, meetings, reviews) are
+  intentionally left alone — only dates anchored to a birth-related label are
+  treated as PII by this layer.
 - **Per-label redaction policy** — choose how each PII type is rewritten:
   - `tag` (default) → `[EMAIL]`, `[PHONE]`, …
   - `mask` → a fixed string (`[REDACTED]`)
@@ -33,8 +36,11 @@ From the base English model: `private_person`, `private_email`,
 `account_number`, `secret`.
 
 The deterministic backstop additionally emits `private_grade` (student grade
-level, a FERPA quasi-identifier) and reuses `private_person`, `private_date`,
-and `account_number` for its matches.
+level, a FERPA quasi-identifier) and `date_of_birth` (dates anchored to a
+birth-related label), and reuses `private_person` and `account_number` for its
+name and ID matches. Keeping `date_of_birth` separate from the model's
+`private_date` lets a policy strip birthdates while leaving general dates
+untouched, e.g. `"labels": [... everything except "private_date" ...]`.
 
 ## Build & run
 

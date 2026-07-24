@@ -74,9 +74,9 @@ func main() {
 
 // newClassifier loads the native engine, or the regex Fake when
 // REDACTOR_USE_FAKE=1 (for local development without a model). Either way the
-// result is wrapped with the deterministic Backstop so structured PII (form
-// dates, "Last, First" names, labeled IDs) is caught even when the model
-// misses it.
+// result is wrapped with the deterministic Backstop so structured PII
+// (labeled birthdates, "Last, First" names, labeled IDs) is caught even when
+// the model misses it.
 func newClassifier(cfg *config.Config, log *slog.Logger) (pfilter.Classifier, error) {
 	if os.Getenv("REDACTOR_USE_FAKE") == "1" {
 		log.Warn("using FAKE classifier (regex-based); not for production")

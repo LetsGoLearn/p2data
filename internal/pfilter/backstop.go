@@ -26,6 +26,10 @@ const monthPat = `(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:
 // namePart matches a single capitalized name token ("Diede", "O'Brien", "St.").
 const namePart = `[A-Z][A-Za-z'’.-]{1,30}`
 
+// datePat matches a date in common numeric or written formats: "04/24/2015",
+// "4-24-15", "2015-04-24", "April 24, 2015", "24 April 2015".
+const datePat = `(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|` + monthPat + `\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+` + monthPat + `\.?,?\s+\d{4})`
+
 // backstopPattern is one regex rule. If group is 0 the whole match is the
 // entity; otherwise the numbered capture group is.
 type backstopPattern struct {
@@ -35,12 +39,13 @@ type backstopPattern struct {
 }
 
 var backstopPatterns = []backstopPattern{
-	// Bare dates in common numeric formats: 04/24/2015, 4-24-15, 2015-04-24.
-	{"private_date", regexp.MustCompile(`\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b`), 0},
-	{"private_date", regexp.MustCompile(`\b\d{4}-\d{2}-\d{2}\b`), 0},
-	// Written dates: "April 24, 2015", "Apr. 24 2015", "24 April 2015".
-	{"private_date", regexp.MustCompile(`(?i)\b` + monthPat + `\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b`), 0},
-	{"private_date", regexp.MustCompile(`(?i)\b\d{1,2}(?:st|nd|rd|th)?\s+` + monthPat + `\.?,?\s+\d{4}\b`), 0},
+	// Birthdates only: a date anchored to a birth-related field label, with the
+	// value optionally on a following line ("Birthdate 04/24/2015", "DOB:
+	// 4/24/15", "Date of Birth\n\n04/24/2015", "born on April 24, 2015").
+	// Deliberately NOT bare dates — test dates, meeting dates, and other event
+	// dates carry meaning and must survive redaction; general date detection is
+	// the model's job (label private_date) and policy-controllable.
+	{"date_of_birth", regexp.MustCompile(`(?i)\b(?:birth\s*date|date\s+of\s+birth|d\.?\s*o\.?\s*b\.?|born(?:\s+on)?)[ \t]*[:#]?\s{0,8}(` + datePat + `)\b`), 1},
 
 	// Labeled identifiers where the value may sit on a following line:
 	// "Student ID # 20470", "Student ID #\n\n20470", "Employee ID: A-1042".
