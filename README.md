@@ -144,6 +144,16 @@ make test          # pure-Go suites (no cgo, no model)
 make test-cgo      # vet the cgo build (requires `make lib`)
 ```
 
+## Professional references
+
+Person spans that identify someone in a professional capacity are NOT
+redacted: names carrying a professional title ("Dr. Paul Smith", "Professor
+Doe" — including when the model tags only the name and the title precedes the
+span) or a credential suffix ("Jane Smith, Ph.D.", "John Roe, BCBA"). These
+identify the clinician/evaluator who authored a report, not the data subject.
+Social titles (Mr., Mrs., Ms.) do not qualify — they routinely refer to
+parents and guardians, which stay protected.
+
 ## Security notes
 
 - TLS is expected to terminate at a reverse proxy / load balancer. In-app TLS

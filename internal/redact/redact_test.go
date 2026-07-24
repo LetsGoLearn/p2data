@@ -230,6 +230,58 @@ func TestApplyParts_AllowListLeavesExcludedInPlace(t *testing.T) {
 	}
 }
 
+func TestApply_ProfessionalReferencesKept(t *testing.T) {
+	r := New("", nil)
+
+	for _, tc := range []struct {
+		text string
+		span string // the private_person span the classifier reports
+	}{
+		// Title inside the span.
+		{"Reference full psychoeducational report of Dr. Paul Smith dated 05/11/2023.", "Dr. Paul Smith"},
+		// Title just outside the span (model tags only the name).
+		{"Evaluated by Dr. Paul Smith on site.", "Paul Smith"},
+		{"Seen by Professor Jane Doe last week.", "Jane Doe"},
+		// Credential suffix.
+		{"Report signed by Jane Smith, Ph.D. on file.", "Jane Smith"},
+		{"Assessment by John Roe, BCBA completed.", "John Roe"},
+	} {
+		s := strings.Index(tc.text, tc.span)
+		e := pfilter.Entity{Start: s, End: s + len(tc.span), Label: "private_person", Score: 1}
+		got, applied := r.Apply(tc.text, ents(e), Policy{ByLabel: map[string]Mode{"private_person": ModeKeepFirst}})
+		if got != tc.text {
+			t.Errorf("professional reference was redacted: %q -> %q", tc.text, got)
+		}
+		if len(applied) != 0 {
+			t.Errorf("applied=%d want 0 for %q", len(applied), tc.text)
+		}
+	}
+}
+
+func TestApply_NonProfessionalPersonsStillRedacted(t *testing.T) {
+	r := New("", nil)
+
+	for _, tc := range []struct {
+		text string
+		span string
+	}{
+		// No title: the student or a plain name.
+		{"Student Paul Smith continues to qualify.", "Paul Smith"},
+		// Social titles refer to parents/guardians and stay protected.
+		{"Contact Mr. Paul Smith at home.", "Mr. Paul Smith"},
+		{"Meeting with Mrs. Jane Doe scheduled.", "Mrs. Jane Doe"},
+		// A name that merely starts with the letters "Dr" is not a title.
+		{"Classmate Drew Smith attended.", "Drew Smith"},
+	} {
+		s := strings.Index(tc.text, tc.span)
+		e := pfilter.Entity{Start: s, End: s + len(tc.span), Label: "private_person", Score: 1}
+		got, applied := r.Apply(tc.text, ents(e), Policy{})
+		if got == tc.text || len(applied) != 1 {
+			t.Errorf("person should have been redacted in %q (got %q)", tc.text, got)
+		}
+	}
+}
+
 func TestPolicyValidate(t *testing.T) {
 	if err := (Policy{Default: "bogus"}).Validate(); err == nil {
 		t.Fatal("expected error for bad default mode")

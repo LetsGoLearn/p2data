@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -12,6 +13,36 @@ import (
 
 // lastTag is the placeholder substituted for a stripped surname in ModeKeepFirst.
 const lastTag = "[LAST]"
+
+// Professional-reference detection: a person mentioned in a professional
+// capacity (the clinician or evaluator who authored/signed a report — "Dr.
+// Paul Smith", "Jane Smith, Ph.D.") identifies a service provider, not the
+// data subject, and is deliberately NOT redacted. Only explicit professional
+// titles and credentials qualify; social titles (Mr., Mrs., Ms.) do not,
+// because they routinely refer to parents and guardians.
+var (
+	// The span itself starts with a professional title.
+	titledPersonRe = regexp.MustCompile(`(?i)^(?:dr|doctor|prof|professor)\.?\s`)
+	// The text immediately before the span ends with a professional title
+	// (the model often tags just the name in "Dr. Paul Smith").
+	titleBeforeRe = regexp.MustCompile(`(?i)(?:^|[\s([])(?:dr|doctor|prof|professor)\.?\s*$`)
+	// The span carries or is followed by a credential ("Jane Smith, Ph.D.").
+	credentialAfterRe = regexp.MustCompile(`(?i)^,?\s*(?:ph\.?\s?d|psy\.?\s?d|ed\.?\s?d|m\.?d|d\.?o|lcsw|bcba|ncsp|ccc-slp|slp|otr|lmft)\b`)
+)
+
+// professionalReference reports whether the person span text[start:end] is a
+// titled/credentialed professional mention.
+func professionalReference(text string, start, end int) bool {
+	if titledPersonRe.MatchString(text[start:end]) {
+		return true
+	}
+	before := text[max(0, start-12):start]
+	if titleBeforeRe.MatchString(before) {
+		return true
+	}
+	after := text[end:min(len(text), end+12)]
+	return credentialAfterRe.MatchString(after)
+}
 
 // defaultTags maps the base-model raw labels to friendly tag names used by
 // ModeTag and ModeHash.
@@ -69,6 +100,9 @@ func (r *Redactor) Apply(text string, ents []pfilter.Entity, p Policy) (string, 
 		mode, ok := p.modeFor(e.Label)
 		if !ok {
 			continue // allow-list excluded this label; leave it in place
+		}
+		if e.Label == "private_person" && professionalReference(text, e.Start, e.End) {
+			continue // titled professional (evaluator/clinician), not the data subject
 		}
 		b.WriteString(text[cursor:e.Start])
 		b.WriteString(r.replacement(text[e.Start:e.End], e.Label, mode))
@@ -194,6 +228,9 @@ func (r *Redactor) ApplyParts(parts []string, ents []pfilter.Entity, p Policy) (
 		mode, ok := p.modeFor(e.Label)
 		if !ok {
 			continue
+		}
+		if e.Label == "private_person" && professionalReference(joined, e.Start, e.End) {
+			continue // titled professional (evaluator/clinician), not the data subject
 		}
 		copyRange(cursor, e.Start)
 		builders[partAt(e.Start)].WriteString(r.replacement(joined[e.Start:e.End], e.Label, mode))
