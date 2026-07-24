@@ -188,6 +188,31 @@ func TestWithBackstop_SpecificLabelWinsOnIdenticalSpan(t *testing.T) {
 	}
 }
 
+// The exact failure mode of PDF→HTML documents: field labels and values
+// arrive as separate text nodes. Once joined into one document (the server's
+// parts mode), the backstop must detect every label/value pair.
+func TestBackstop_JoinedHTMLTextNodes(t *testing.T) {
+	nodes := []string{
+		"Student", "Diede, Anderson Cash",
+		"Birthdate", " ", " 04/24/2015 ",
+		"Grade", " ", " 03 ",
+		"Student ID #", " 20470 ",
+		"Student Primary Language", " eng -English ",
+	}
+	joined := strings.Join(nodes, "\n\n")
+	ents := classify(t, NewBackstop(), joined)
+
+	labels := map[string]bool{}
+	for _, e := range ents {
+		labels[e.Label] = true
+	}
+	for _, want := range []string{"private_person", "date_of_birth", "private_grade", "account_number"} {
+		if !labels[want] {
+			t.Errorf("missing %s in joined text nodes: %v", want, ents)
+		}
+	}
+}
+
 func TestWithBackstop_MergesAndDedupes(t *testing.T) {
 	// The Fake finds "Jane Doe"; the backstop finds the same DOB span the
 	// fake cannot. Duplicate spans must not be emitted twice.

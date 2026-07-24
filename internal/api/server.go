@@ -87,13 +87,22 @@ func (s *Server) handleLabels(w http.ResponseWriter, _ *http.Request) {
 }
 
 type redactRequest struct {
+	// Text and Parts are mutually exclusive. Parts are classified as ONE
+	// document (joined with a paragraph break) so entities that need
+	// cross-part context — a field label in one part and its value in the
+	// next, as produced by HTML text nodes — are still detected; the response
+	// returns each part redacted individually.
 	Text      string         `json:"text"`
+	Parts     []string       `json:"parts,omitempty"`
 	Threshold *float32       `json:"threshold,omitempty"`
 	Policy    *redact.Policy `json:"policy,omitempty"`
 }
 
 type redactResponse struct {
-	Redacted string           `json:"redacted"`
+	Redacted string `json:"redacted,omitempty"`
+	// Parts mirrors the request's parts, each redacted. Entity offsets are
+	// relative to the joined document, not to individual parts.
+	Parts    []string         `json:"parts,omitempty"`
 	Entities []pfilter.Entity `json:"entities"`
 	Counts   map[string]int   `json:"counts"`
 }
@@ -113,8 +122,12 @@ func (s *Server) handleRedact(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if req.Text == "" {
-		writeError(w, http.StatusBadRequest, "field 'text' is required")
+	if req.Text == "" && len(req.Parts) == 0 {
+		writeError(w, http.StatusBadRequest, "field 'text' or 'parts' is required")
+		return
+	}
+	if req.Text != "" && len(req.Parts) > 0 {
+		writeError(w, http.StatusBadRequest, "fields 'text' and 'parts' are mutually exclusive")
 		return
 	}
 
@@ -132,14 +145,26 @@ func (s *Server) handleRedact(w http.ResponseWriter, r *http.Request) {
 		threshold = *req.Threshold
 	}
 
-	ents, err := s.opts.Classifier.Classify(r.Context(), req.Text, threshold)
+	text := req.Text
+	if len(req.Parts) > 0 {
+		text = redact.JoinParts(req.Parts)
+	}
+
+	ents, err := s.opts.Classifier.Classify(r.Context(), text, threshold)
 	if err != nil {
 		s.opts.Logger.Error("classify failed", "err", err)
 		writeError(w, http.StatusInternalServerError, "classification failed")
 		return
 	}
 
-	redacted, applied := s.opts.Redactor.Apply(req.Text, ents, policy)
+	var redacted string
+	var redactedParts []string
+	var applied []pfilter.Entity
+	if len(req.Parts) > 0 {
+		redactedParts, applied = s.opts.Redactor.ApplyParts(req.Parts, ents, policy)
+	} else {
+		redacted, applied = s.opts.Redactor.Apply(text, ents, policy)
+	}
 
 	counts := map[string]int{}
 	for _, e := range applied {
@@ -155,6 +180,7 @@ func (s *Server) handleRedact(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, redactResponse{
 		Redacted: redacted,
+		Parts:    redactedParts,
 		Entities: applied,
 		Counts:   counts,
 	})

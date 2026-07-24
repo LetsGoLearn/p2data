@@ -126,6 +126,89 @@ func (r *Redactor) tag(label string) string {
 	return strings.ToUpper(strings.TrimPrefix(label, "private_"))
 }
 
+// PartsSeparator joins the strings of a multi-part request into one document
+// for classification. Two newlines read as a paragraph break, so both the NER
+// model and the deterministic backstop see label/value pairs that arrive as
+// separate parts (e.g. HTML text nodes "Student ID #" and "20470") as
+// adjacent lines of the same document.
+const PartsSeparator = "\n\n"
+
+// JoinParts builds the classification text for a multi-part request.
+func JoinParts(parts []string) string {
+	return strings.Join(parts, PartsSeparator)
+}
+
+// ApplyParts rewrites a multi-part request. ents must be byte-offset spans
+// into JoinParts(parts). It returns one redacted string per input part (in
+// order) and the entities that were applied. An entity that crosses a part
+// boundary is written into the part where it starts; the covered text in
+// later parts (and any covered separator glue) is dropped.
+func (r *Redactor) ApplyParts(parts []string, ents []pfilter.Entity, p Policy) ([]string, []pfilter.Entity) {
+	joined := JoinParts(parts)
+
+	// bounds[i] is part i's [start, end) range in joined.
+	bounds := make([][2]int, len(parts))
+	pos := 0
+	for i, part := range parts {
+		bounds[i] = [2]int{pos, pos + len(part)}
+		pos += len(part) + len(PartsSeparator)
+	}
+
+	builders := make([]strings.Builder, len(parts))
+
+	// copyRange writes joined[from:to) into the builders of the parts it
+	// overlaps, skipping separator glue.
+	copyRange := func(from, to int) {
+		for i, b := range bounds {
+			s, e := max(from, b[0]), min(to, b[1])
+			if s < e {
+				builders[i].WriteString(joined[s:e])
+			}
+		}
+	}
+	// partAt returns the index of the part containing (or, for offsets inside
+	// separator glue, following) byte offset off.
+	partAt := func(off int) int {
+		for i, b := range bounds {
+			if off < b[1] {
+				return i
+			}
+		}
+		return len(parts) - 1
+	}
+
+	sorted := append([]pfilter.Entity(nil), ents...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Start != sorted[j].Start {
+			return sorted[i].Start < sorted[j].Start
+		}
+		return sorted[i].End > sorted[j].End
+	})
+
+	applied := make([]pfilter.Entity, 0, len(sorted))
+	cursor := 0
+	for _, e := range sorted {
+		if e.Start < cursor || e.Start < 0 || e.End > len(joined) || e.Start >= e.End {
+			continue
+		}
+		mode, ok := p.modeFor(e.Label)
+		if !ok {
+			continue
+		}
+		copyRange(cursor, e.Start)
+		builders[partAt(e.Start)].WriteString(r.replacement(joined[e.Start:e.End], e.Label, mode))
+		cursor = e.End
+		applied = append(applied, e)
+	}
+	copyRange(cursor, len(joined))
+
+	out := make([]string, len(parts))
+	for i := range builders {
+		out[i] = builders[i].String()
+	}
+	return out, applied
+}
+
 // hash returns the first 8 hex chars of HMAC-SHA256(value) under hashSecret.
 func (r *Redactor) hash(value string) string {
 	m := hmac.New(sha256.New, r.hashSecret)

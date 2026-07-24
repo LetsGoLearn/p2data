@@ -168,6 +168,68 @@ func TestApply_ParentLabelCoversDateOfBirth(t *testing.T) {
 	}
 }
 
+func TestApplyParts_MapsEntitiesBackToParts(t *testing.T) {
+	r := New("", nil)
+	// Mimics HTML text nodes: the label and its value arrive as separate
+	// strings; classification runs over the joined document.
+	parts := []string{"Birthdate", "04/24/2015", "Grade", "03"}
+	joined := JoinParts(parts)
+
+	dob := strings.Index(joined, "04/24/2015")
+	grade := strings.LastIndex(joined, "03")
+	es := ents(
+		pfilter.Entity{Start: dob, End: dob + len("04/24/2015"), Label: "date_of_birth", Score: 1},
+		pfilter.Entity{Start: grade, End: grade + len("03"), Label: "private_grade", Score: 1},
+	)
+
+	out, applied := r.ApplyParts(parts, es, Policy{})
+	want := []string{"Birthdate", "[DOB]", "Grade", "[GRADE]"}
+	for i := range want {
+		if out[i] != want[i] {
+			t.Errorf("part %d: got %q want %q", i, out[i], want[i])
+		}
+	}
+	if len(applied) != 2 {
+		t.Fatalf("applied=%d want 2", len(applied))
+	}
+}
+
+func TestApplyParts_EntityCrossingBoundary(t *testing.T) {
+	r := New("", nil)
+	parts := []string{"call Jane", "Doe now"}
+	joined := JoinParts(parts) // "call Jane\n\nDoe now"
+
+	s := strings.Index(joined, "Jane")
+	e := strings.Index(joined, "Doe") + len("Doe")
+	es := ents(pfilter.Entity{Start: s, End: e, Label: "private_person", Score: 1})
+
+	out, _ := r.ApplyParts(parts, es, Policy{})
+	// The replacement lands in the part where the entity starts; the covered
+	// text in the next part (and the separator glue) is dropped.
+	if out[0] != "call [PERSON]" {
+		t.Errorf("part 0: got %q", out[0])
+	}
+	if out[1] != " now" {
+		t.Errorf("part 1: got %q", out[1])
+	}
+}
+
+func TestApplyParts_AllowListLeavesExcludedInPlace(t *testing.T) {
+	r := New("", nil)
+	parts := []string{"Meeting on", "04/12/2024"}
+	joined := JoinParts(parts)
+	s := strings.Index(joined, "04/12/2024")
+	es := ents(pfilter.Entity{Start: s, End: s + len("04/12/2024"), Label: "private_date", Score: 1})
+
+	out, applied := r.ApplyParts(parts, es, Policy{Labels: []string{"date_of_birth"}})
+	if out[0] != "Meeting on" || out[1] != "04/12/2024" {
+		t.Errorf("got %q", out)
+	}
+	if len(applied) != 0 {
+		t.Fatalf("applied=%d want 0", len(applied))
+	}
+}
+
 func TestPolicyValidate(t *testing.T) {
 	if err := (Policy{Default: "bogus"}).Validate(); err == nil {
 		t.Fatal("expected error for bad default mode")

@@ -105,6 +105,16 @@ Response:
 The response never echoes the original PII values — only offsets, labels, and
 scores.
 
+#### Multi-part requests
+
+Send `"parts": ["...", "..."]` instead of `"text"` when the strings are
+fragments of ONE document (HTML text nodes, PDF lines). The server joins them
+with a paragraph break for classification — so a field label in one part and
+its value in the next ("Student ID #" / "20470") are still detected — and
+returns `"parts"` with each fragment redacted individually, in order. Entity
+offsets are relative to the joined document. `text` and `parts` are mutually
+exclusive.
+
 ### `GET /v1/labels`
 
 Lists the supported labels and their friendly tags.
