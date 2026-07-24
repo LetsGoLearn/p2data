@@ -42,6 +42,12 @@ name and ID matches. Keeping `date_of_birth` separate from the model's
 `private_date` lets a policy strip birthdates while leaving general dates
 untouched, e.g. `"labels": [... everything except "private_date" ...]`.
 
+`date_of_birth` is a subtype of `private_date`: any policy that targets
+`private_date` (allow-list entry or `byLabel` override) automatically covers
+`date_of_birth` too, so older policies written before the label existed cannot
+leak a birthdate. The reverse does not hold — allowing only `date_of_birth`
+leaves general dates untouched.
+
 ## Build & run
 
 Requires Go 1.26+, a C/C++ toolchain, and `cmake`.

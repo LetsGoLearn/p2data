@@ -155,6 +155,39 @@ func TestBackstop_NoFalsePositives(t *testing.T) {
 	}
 }
 
+// stubClassifier emits a fixed entity list, standing in for the NER model.
+type stubClassifier struct{ ents []Entity }
+
+func (s *stubClassifier) Classify(context.Context, string, float32) ([]Entity, error) {
+	return append([]Entity(nil), s.ents...), nil
+}
+func (s *stubClassifier) Close() error { return nil }
+
+// Regression: the real model tags "04/24/2015" as private_date with the exact
+// span the backstop tags as date_of_birth. The merged result must carry the
+// backstop's more specific label, otherwise a policy that allows
+// date_of_birth but excludes private_date lets the birthdate through.
+func TestWithBackstop_SpecificLabelWinsOnIdenticalSpan(t *testing.T) {
+	text := "Birthdate 04/24/2015"
+	s := strings.Index(text, "04/24/2015")
+	model := &stubClassifier{ents: []Entity{
+		{Start: s, End: s + len("04/24/2015"), Score: 0.9, Label: "private_date"},
+	}}
+	c := WithBackstop(model)
+	defer c.Close()
+
+	ents := classify(t, c, text)
+	var got []string
+	for _, e := range ents {
+		if e.Start == s && e.End == s+len("04/24/2015") {
+			got = append(got, e.Label)
+		}
+	}
+	if len(got) != 1 || got[0] != "date_of_birth" {
+		t.Fatalf("want exactly one date_of_birth entity for the span, got %v", got)
+	}
+}
+
 func TestWithBackstop_MergesAndDedupes(t *testing.T) {
 	// The Fake finds "Jane Doe"; the backstop finds the same DOB span the
 	// fake cannot. Duplicate spans must not be emitted twice.

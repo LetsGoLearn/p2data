@@ -140,6 +140,34 @@ func TestApply_OverlapAndOutOfRange(t *testing.T) {
 	}
 }
 
+func TestApply_ParentLabelCoversDateOfBirth(t *testing.T) {
+	r := New("", nil)
+	text := "Birthdate 04/24/2015 reviewed"
+	s := strings.Index(text, "04/24/2015")
+	e := pfilter.Entity{Start: s, End: s + len("04/24/2015"), Label: "date_of_birth"}
+
+	// An allow-list with only the parent label still redacts the subtype, so a
+	// pre-date_of_birth policy cannot leak a birthdate.
+	got, _ := r.Apply(text, ents(e), Policy{Labels: []string{"private_date"}})
+	if got != "Birthdate [DOB] reviewed" {
+		t.Fatalf("parent allow-list: got %q", got)
+	}
+
+	// A byLabel override on the parent applies to the subtype too.
+	got, _ = r.Apply(text, ents(e), Policy{ByLabel: map[string]Mode{"private_date": ModeDrop}})
+	if got != "Birthdate  reviewed" {
+		t.Fatalf("parent byLabel: got %q", got)
+	}
+
+	// The reverse does not hold: allowing only date_of_birth leaves a general
+	// date untouched.
+	gen := pfilter.Entity{Start: s, End: s + len("04/24/2015"), Label: "private_date"}
+	got, _ = r.Apply(text, ents(gen), Policy{Labels: []string{"date_of_birth"}})
+	if got != text {
+		t.Fatalf("general date should pass through: got %q", got)
+	}
+}
+
 func TestPolicyValidate(t *testing.T) {
 	if err := (Policy{Default: "bogus"}).Validate(); err == nil {
 		t.Fatal("expected error for bad default mode")

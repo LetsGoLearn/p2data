@@ -139,16 +139,22 @@ func (m *merged) Classify(ctx context.Context, text string, threshold float32) (
 	if err != nil {
 		return nil, err
 	}
-	// Drop backstop spans identical to a model span so callers don't see
-	// duplicate entities; partial overlaps are left for redact.Apply.
-	seen := make(map[[2]int]bool, len(ents))
-	for _, e := range ents {
-		seen[[2]int{e.Start, e.End}] = true
+	// When the model and the backstop find the exact same span, keep ONE
+	// entity carrying the backstop's label: the backstop is deterministic and
+	// more specific (e.g. date_of_birth refines private_date), and a policy
+	// targeting the specific label must win. Keeping the model's label here
+	// once let a birthdate through a policy that allowed date_of_birth but
+	// excluded private_date. Partial overlaps are left for redact.Apply.
+	byWSpan := make(map[[2]int]int, len(ents))
+	for i, e := range ents {
+		byWSpan[[2]int{e.Start, e.End}] = i
 	}
 	for _, e := range extra {
-		if !seen[[2]int{e.Start, e.End}] {
-			ents = append(ents, e)
+		if i, ok := byWSpan[[2]int{e.Start, e.End}]; ok {
+			ents[i] = e
+			continue
 		}
+		ents = append(ents, e)
 	}
 	return ents, nil
 }

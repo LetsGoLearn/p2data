@@ -58,13 +58,23 @@ func (p Policy) Validate() error {
 	return nil
 }
 
+// labelParents maps specialized labels to the broader label they refine. A
+// policy that targets the parent also covers the specialization, so e.g. an
+// allow-list containing private_date can never let a birthdate through just
+// because it predates the date_of_birth label. The reverse does not hold:
+// allowing only date_of_birth leaves general dates untouched.
+var labelParents = map[string]string{
+	"date_of_birth": "private_date",
+}
+
 // modeFor resolves the mode for a label and whether it should be redacted at
 // all (false means leave the span untouched).
 func (p Policy) modeFor(label string) (Mode, bool) {
+	parent := labelParents[label]
 	if len(p.Labels) > 0 {
 		found := false
 		for _, l := range p.Labels {
-			if l == label {
+			if l == label || (parent != "" && l == parent) {
 				found = true
 				break
 			}
@@ -75,6 +85,11 @@ func (p Policy) modeFor(label string) (Mode, bool) {
 	}
 	if m, ok := p.ByLabel[label]; ok {
 		return m, true
+	}
+	if parent != "" {
+		if m, ok := p.ByLabel[parent]; ok {
+			return m, true
+		}
 	}
 	if p.Default != "" {
 		return p.Default, true
